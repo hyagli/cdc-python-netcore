@@ -1,0 +1,56 @@
+version: '3.7'
+services:
+  python_app:
+    build: ./django-mysql/
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./django-mysql/src:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mysql
+  mysql:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: pass
+      MYSQL_USER: django
+      MYSQL_PASSWORD: django
+      MYSQL_DATABASE: djangodb
+  adminer:
+    image: adminer:latest
+    environment:
+      ADMINER_DEFAULT_SERVER: mysql
+      ADMINER_DEFAULT_DB_NAME: djangodb
+    ports:
+      - 8080:8080
+  zookeeper:
+    image: debezium/zookeeper:1.6
+    ports:
+      - 2181:2181
+      - 2888:2888
+      - 3888:3888
+  kafka:
+    image: debezium/kafka:1.6
+    ports:
+      - 9092:9092
+    environment:
+      ZOOKEEPER_CONNECT: zookeeper:2181
+      BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      - zookeeper
+  kafka-connect:
+    image: debezium/connect:1.6
+    environment:
+      ZOOKEEPER_CONNECT: zookeeper:2181
+      BOOTSTRAP_SERVERS: kafka:9092
+      GROUP_ID: 1
+      STATUS_STORAGE_TOPIC: my_connect_statuses
+      OFFSET_STORAGE_TOPIC: my_connect_offsets
+      CONFIG_STORAGE_TOPIC: my_connect_configs
+    ports:
+      - 8083:8083
+    depends_on:
+      - kafka
+      - zookeeper
+      - mysql
