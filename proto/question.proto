@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package com.hus.cdc;
+
+import "google/protobuf/timestamp.proto";
+
+message Question {
+  int32 id = 1;
+  string question_text = 2;
+  google.protobuf.Timestamp pub_date = 3;
+}

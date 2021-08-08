@@ -38,7 +38,7 @@ Run for default django tables:
 
 Add some polls from admin page
 
-    docker-compose run --rm --no-deps web python manage.py createsuperuser
+    docker-compose run --rm --no-deps python_app python manage.py createsuperuser
 
 The default login and password for the admin site is admin:admin.
 
@@ -82,3 +82,15 @@ List all topics:
 List messages in polls_question topic:
 
     bin/kafka-console-consumer.sh --bootstrap-server kafka:9092 --topic cdc-mysql.djangodb.polls_question --from-beginning
+
+I created a protobuf file to have a well-defined type between python and .net core: `/proto/question.proto`. To compile the proto file, you can install the protobuf compiler using:
+
+    brew install protobuf
+
+And run the following command inside the proto folder (I've already included the compiled output of the proto file in the repo).
+
+    protoc question.proto --python_out=./output/python/ --csharp_out=./output/cs/
+
+We will now create an outbox table to implement the cdc outbox pattern using Debezium. Open a shell session inside your mysql container and create the table.
+
+    
