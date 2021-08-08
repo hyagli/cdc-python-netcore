@@ -29,3 +29,11 @@ class Choice(models.Model):
 
     def __str__(self):
         return self.choice_text
+
+
+class Outbox(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    aggregatetype = models.CharField(max_length=255)
+    aggregateid = models.CharField(max_length=255)
+    type_ = models.CharField(max_length=255, db_column='type')
+    payload = models.TextField()

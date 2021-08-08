@@ -1,7 +1,9 @@
 from django.contrib import admin
 from django.db import transaction
+from google.protobuf.timestamp_pb2 import Timestamp
 
 from .models import Choice, Question
+from ../proto/question_pb2 import Question as QuestionProto
 
 
 class ChoiceInline(admin.TabularInline):
@@ -23,5 +25,24 @@ class QuestionAdmin(admin.ModelAdmin):
     @transaction.atomic
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
+        self.create_outbox_record(obj)
+
+    def create_outbox_record(self, obj):
+        ts = Timestamp()
+        ts.FromDatetime(obj.pub_date)
+        proto = QuestionProto(
+            id=obj.id,
+            question_text=obj.question_text,
+            pub_date=ts,
+        )
+        outbox = Outbox(
+            aggregatetype='question',
+            aggregateid=obj.id,
+            type_='question_created',
+            payload=proto,
+        )
+        outbox.save()
+        outbox.delete()
+
 
 admin.site.register(Question, QuestionAdmin)
