@@ -91,6 +91,13 @@ And run the following command inside the proto folder (I've already included the
 
     protoc question.proto --python_out=./output/python/ --csharp_out=./output/cs/
 
-We will now create an outbox table to implement the cdc outbox pattern using Debezium. Open a shell session inside your mysql container and create the table.
+We now need an outbox table to implement the cdc outbox pattern using Debezium. I created the Outbox model for this:
 
-    
+    class Outbox(models.Model):
+        id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+        aggregatetype = models.CharField(max_length=255)
+        aggregateid = models.CharField(max_length=255)
+        event_type = models.CharField(max_length=255, db_column='type')
+        payload = models.BinaryField()
+
+You can read the Debezium documentation for details. The `payload` column is special here since it will hold the serialized protobuf value and it will be passed transparently by Debezium to Kafka.
