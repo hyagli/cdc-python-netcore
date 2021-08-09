@@ -1,4 +1,5 @@
 import datetime
+import uuid
 
 from django.utils import timezone
 from django.db import models
@@ -35,5 +36,5 @@ class Outbox(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     aggregatetype = models.CharField(max_length=255)
     aggregateid = models.CharField(max_length=255)
-    type_ = models.CharField(max_length=255, db_column='type')
-    payload = models.TextField()
+    event_type = models.CharField(max_length=255, db_column='type')
+    payload = models.BinaryField()

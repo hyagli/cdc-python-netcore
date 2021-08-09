@@ -2,8 +2,8 @@ from django.contrib import admin
 from django.db import transaction
 from google.protobuf.timestamp_pb2 import Timestamp
 
-from .models import Choice, Question
-from ../proto/question_pb2 import Question as QuestionProto
+from .models import Choice, Question, Outbox
+from proto.question_pb2 import Question as QuestionProto
 
 
 class ChoiceInline(admin.TabularInline):
@@ -38,11 +38,11 @@ class QuestionAdmin(admin.ModelAdmin):
         outbox = Outbox(
             aggregatetype='question',
             aggregateid=obj.id,
-            type_='question_created',
-            payload=proto,
+            event_type='question_created',
+            payload=proto.SerializeToString(),
         )
         outbox.save()
-        outbox.delete()
+        #outbox.delete()
 
 
 admin.site.register(Question, QuestionAdmin)
