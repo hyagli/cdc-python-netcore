@@ -61,7 +61,9 @@ Verify Debezium MySQL connector configuration. Read more about it at https://deb
             "database.server.name": "cdc-mysql",
             "database.include.list": "djangodb",
             "database.history.kafka.bootstrap.servers": "kafka:9092",
-            "database.history.kafka.topic": "schema-changes.djangodb"
+            "database.history.kafka.topic": "schema-changes.djangodb",
+            "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
+            "value.converter": "io.debezium.converters.ByteBufferConverter"
         }
     }
 
@@ -100,4 +102,4 @@ We now need an outbox table to implement the cdc outbox pattern using Debezium. 
         event_type = models.CharField(max_length=255, db_column='type')
         payload = models.BinaryField()
 
-You can read the Debezium documentation for details. The `payload` column is special here since it will hold the serialized protobuf value and it will be passed transparently by Debezium to Kafka.
+You can read the [Debezium documentation](https://debezium.io/documentation/reference/configuration/outbox-event-router.html) for details. The `payload` column is special here since it will hold the serialized protobuf value and it will be passed transparently by Debezium to Kafka.
