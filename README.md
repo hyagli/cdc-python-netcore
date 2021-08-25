@@ -5,93 +5,74 @@ This example has two components to demonstrate the utilities.
 
 Debezium
 
-Requirements
-Just docker
+Requirements:<br>
+- Just docker
 
-
-Create your Django app:
-
-    docker-compose run --rm --no-deps web django-admin startproject django_cdc .
-
-Modify src/django_cdc/settings.py
-
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.mysql',
-            'NAME': 'djangodb',
-            'USER': 'django',
-            'PASSWORD': 'django',
-            'HOST': 'mysql',
-            'PORT': 3306,
-        }
-    }
-
-Run:
+To get the docker containers up and running:
 
     docker-compose up -d
 
-Run for default django tables:
+To create the django tables in MySQL:
 
     docker-compose run --rm --no-deps python_app python manage.py migrate
-    docker-compose run --rm --no-deps python_app python manage.py makemigrations polls
-    docker-compose run --rm --no-deps python_app python manage.py migrate polls
 
-Add some polls from admin page
+To add some polls from admin page, create a superuser
 
     docker-compose run --rm --no-deps python_app python manage.py createsuperuser
 
-The default login and password for the admin site is admin:admin.
+Using the username/password you just generated, you can later visit http://localhost:8000/admin/polls/question/ and create some rows after setting up CDC.
 
-Grant the required MySQL rights to django so that CDC can do it's job:
+Grant the required MySQL rights to django so that Debezium can do it's job.
+To do this, go to Adminer UI at http://localhost:8080/. Login using:
+
+    Server: mysql
+    Username: root
+    Password: pass
+    Database: djangodb
+
+After logging in, click "SQL command" and execute this:
 
     GRANT SELECT, RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO django@'%';
 
-Verify Debezium MySQL connector configuration. Read more about it at https://debezium.io/documentation/reference/connectors/mysql.html#mysql-required-connector-configuration-properties
+The next thing to do is set up Debezium by sending a cURL command to kafka connect.<br>
+You can read about the Debezium MySQL connector configuration at https://debezium.io/documentation/reference/connectors/mysql.html#mysql-required-connector-configuration-properties
 
-    {
-        "name": "cdc-python-netcore-connector",
+To send our binary Protobuffer data, we will use the same method as Avro configuration explained here: https://debezium.io/documentation/reference/transformations/outbox-event-router.html#avro-as-payload-format
+
+Open a new terminal, and use the curl command to register the Debezium MySQL connector. (You may need to escape your double-quotes on windows if you get a parsing error). This will add a connector in our kafka-connect container to listen to database changes in our outbox table.
+
+    curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" localhost:8083/connectors/ --data-raw '{
+        "name": "cdc-python-netcore-connector-outbox-2",
         "config": {
             "connector.class": "io.debezium.connector.mysql.MySqlConnector",
-            "tasks.max": "1",
             "database.hostname": "mysql",
             "database.port": "3306",
             "database.user": "django",
             "database.password": "django",
-            "database.server.id": "123321",
             "database.server.name": "cdc-mysql",
-            "database.include.list": "djangodb",
+            "database.history.kafka.topic": "cdc-test",
             "database.history.kafka.bootstrap.servers": "kafka:9092",
-            "database.history.kafka.topic": "schema-changes.djangodb",
-            "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
-            "value.converter": "io.debezium.converters.ByteBufferConverter"
+            "table.include.list": "djangodb.polls_outbox",
+            "transforms": "outbox",
+            "transforms.outbox.type" : "io.debezium.transforms.outbox.EventRouter",
+            "value.converter": "io.debezium.converters.ByteBufferConverter",
+            "value.converter.schemas.enable": "false",
+            "value.converter.delegate.converter.type": "org.apache.kafka.connect.json.JsonConverter"
         }
-    }
-
-Open a new terminal, and use the curl command to register the Debezium MySQL connector. (You may need to escape your double-quotes on windows if you get a parsing error)
-
-    curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" localhost:8083/connectors/ -d '{"name":"cdc-python-netcore-connector","config":{"connector.class":"io.debezium.connector.mysql.MySqlConnector","tasks.max":"1","database.hostname":"mysql","database.port":"3306","database.user":"django","database.password":"django","database.server.id":"123321","database.server.name":"cdc-mysql","database.include.list":"djangodb","database.history.kafka.bootstrap.servers":"kafka:9092","database.history.kafka.topic":"schema-changes.djangodb"}}'
+    }'
 
 Create a new poll question using the admin page at http://localhost:8000/admin/polls/question/add/
 
-Start a shell prompt in the kafka container:
+To see if everything is running as expected go to our kafdrop container page at http://localhost:9000/
+You should see the topics.
 
-    docker exec -it <kafka-container-name> bash
-
-List all topics:
-
-    bin/kafka-topics.sh --list --zookeeper zookeeper:2181
-
-List messages in polls_question topic:
-
-    bin/kafka-console-consumer.sh --bootstrap-server kafka:9092 --topic cdc-mysql.djangodb.polls_question --from-beginning
-
-I created a protobuf file to have a well-defined type between python and .net core: `/proto/question.proto`. To compile the proto file, you can install the protobuf compiler using:
+To prepare a protobuf file between python and .net core, I wrote a proto file: `/proto/question.proto`. To compile the proto file, you can install the protobuf compiler using:
 
     brew install protobuf
 
 And run the following command inside the proto folder (I've already included the compiled output of the proto file in the repo).
 
-    protoc question.proto --python_out=./output/python/ --csharp_out=./output/cs/
+    protoc question.proto --python_out=./output/python/ --csharp_out=./output/csharp/ --descriptor_set_out=question.desc
 
 We now need an outbox table to implement the cdc outbox pattern using Debezium. I created the Outbox model for this:
 
@@ -103,3 +84,27 @@ We now need an outbox table to implement the cdc outbox pattern using Debezium. 
         payload = models.BinaryField()
 
 You can read the [Debezium documentation](https://debezium.io/documentation/reference/configuration/outbox-event-router.html) for details. The `payload` column is special here since it will hold the serialized protobuf value and it will be passed transparently by Debezium to Kafka.
+
+To populate the outbox table, I used the `save_model` method of admin view:
+
+    @transaction.atomic
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        self.create_outbox_record(obj)
+
+    def create_outbox_record(self, obj):
+        ts = Timestamp()
+        ts.FromDatetime(obj.pub_date)
+        proto = QuestionProto(
+            id=obj.id,
+            question_text=obj.question_text,
+            pub_date=ts,
+        )
+        outbox = Outbox(
+            aggregatetype='question',
+            aggregateid=obj.id,
+            event_type='question_created',
+            payload=proto.SerializeToString(),
+        )
+        outbox.save()
+        #outbox.delete()

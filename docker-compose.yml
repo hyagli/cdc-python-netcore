@@ -60,3 +60,16 @@ services:
       - kafka
       - zookeeper
       - mysql
+  kafdrop:
+    container_name: cdc-kafdrop
+    image: obsidiandynamics/kafdrop:3.27.0
+    volumes:
+      - ./proto:/var/protobuf_desc
+    command: /kafdrop.sh --message.format=PROTOBUF --protobufdesc.directory=/var/protobuf_desc
+    environment:
+      KAFKA_BROKERCONNECT: kafka:9092
+    ports:
+      - 9000:9000
+    depends_on:
+      - kafka
+      - zookeeper
