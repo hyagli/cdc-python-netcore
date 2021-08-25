@@ -42,7 +42,7 @@ To send our binary Protobuffer data, we will use the same method as Avro configu
 Open a new terminal, and use the curl command to register the Debezium MySQL connector. (You may need to escape your double-quotes on windows if you get a parsing error). This will add a connector in our kafka-connect container to listen to database changes in our outbox table.
 
     curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" localhost:8083/connectors/ --data-raw '{
-        "name": "cdc-python-netcore-connector-outbox-2",
+        "name": "cdc-python-netcore-connector-outbox",
         "config": {
             "connector.class": "io.debezium.connector.mysql.MySqlConnector",
             "database.hostname": "mysql",
