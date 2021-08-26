@@ -18,7 +18,7 @@ namespace netcore.Models
         {
             var consumerConfig = new ConsumerConfig
             {
-                BootstrapServers = "localhost:9094",
+                BootstrapServers = "host.docker.internal:9092",
                 GroupId = "hus-dotnet-consumer",
                 AutoOffsetReset = AutoOffsetReset.Earliest
             };

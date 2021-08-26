@@ -38,13 +38,11 @@ services:
     container_name: cdc-kafka
     image: debezium/kafka:1.6
     ports:
-      - 9094:9094
+      - 9092:9092
     environment:
       ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT
-      KAFKA_LISTENERS: INSIDE://:9092,OUTSIDE://127.0.0.1:9094
-      KAFKA_ADVERTISED_LISTENERS: INSIDE://:9092,OUTSIDE://127.0.0.1:9094
-      KAFKA_INTER_BROKER_LISTENER_NAME: INSIDE
+      ADVERTISED_LISTENER:
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://host.docker.internal:9092
     depends_on:
       - zookeeper
   kafka-connect:
