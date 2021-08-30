@@ -3,12 +3,14 @@ services:
   mysql:
     container_name: cdc-mysql
     image: mysql:8.0
-    command: --default-authentication-plugin=mysql_native_password
+    command: mysqld --init-file="/tmp/db/init.sql" --default-authentication-plugin=mysql_native_password
     environment:
       MYSQL_ROOT_PASSWORD: pass
       MYSQL_USER: django
       MYSQL_PASSWORD: django
       MYSQL_DATABASE: djangodb
+    volumes:
+      - ./db:/tmp/db
   python_app:
     container_name: cdc-python_app
     build: ./django-mysql/
