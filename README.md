@@ -1,7 +1,10 @@
-Debezium is an open source project for change data capture (CDC).
-This example has two components to demonstrate the utilities.
-- A Django application with a MySQL database that saves data.
-- A .NET Core application with a PostgreSQL database that consumes this data.
+This example shows that you can profit from [Debezium](https://debezium.io/) for an [Outbox Pattern implementation](https://debezium.io/documentation/reference/1.6/transformations/outbox-event-router.html) while also having the benefits of [Google Protobuffers](https://developers.google.com/protocol-buffers).
+
+[Debezium](https://debezium.io/) is an open source project for [change data capture (CDC)](https://en.wikipedia.org/wiki/Change_data_capture).
+This example has a few components to demonstrate the utilities.
+- A dockerized Django web application that stores data in a MySQL database. This application writes the events to an outbox table in a protobuf binary serialized format.
+- An [Apache Kafka](https://kafka.apache.org/) docker setup with a [Kafka Connect](https://docs.confluent.io/platform/current/connect/index.html) container that has the [Debezium MySQL connector](https://debezium.io/documentation/reference/connectors/mysql.html) installed. The Debezium connector listens to the MySQL binlog for a specific outbox table and pushes the changes to a Kafka topic
+- A .NET Core React application with a PostgreSQL database that consumes this data.
 
 Debezium
 
@@ -37,9 +40,9 @@ After logging in, click "SQL command" and execute this:
 The next thing to do is set up Debezium by sending a cURL command to kafka connect.<br>
 You can read about the Debezium MySQL connector configuration at https://debezium.io/documentation/reference/connectors/mysql.html#mysql-required-connector-configuration-properties
 
-To send our binary Protobuffer data, we will use the same method as Avro configuration explained here: https://debezium.io/documentation/reference/transformations/outbox-event-router.html#avro-as-payload-format
+To send our binary Protobuffer data, we will use the same method as Avro configuration explained here: https://debezium.io/documentation/reference/transformations/outbox-event-router.html#avro-as-payload-format. This configuration is critical since we do not want the default configuration that will produce to Kafka using a Debezium JSON structure. This Debezium JSON structure would force our downstream consumers to also depend on that structure instead of a simple proto definition. That would also mean we would be losing [the serialization performance and data size efficiency of Protobuffers](https://dzone.com/articles/is-protobuf-5x-faster-than-json) since the data would be JSON serialized/deserialized. To achieve this, we are using the `ByteBufferConverter` class as our `value.converter` and we disable the schema information with `"value.converter.schemas.enable": "false"`
 
-Open a new terminal, and use the curl command to register the Debezium MySQL connector. (You may need to escape your double-quotes on windows if you get a parsing error). This will add a connector in our kafka-connect container to listen to database changes in our outbox table.
+Open a new terminal, and use the curl command to register the Debezium MySQL connector. (You may need to escape your double-quotes on windows if you get a parsing error. Just use [PostMan](https://www.postman.com/) IMO). This will add a connector in our kafka-connect container to listen to database changes in our outbox table.
 
     curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" localhost:8083/connectors/ --data-raw '{
         "name": "cdc-python-netcore-connector-outbox",
@@ -61,20 +64,20 @@ Open a new terminal, and use the curl command to register the Debezium MySQL con
         }
     }'
 
-Create a new poll question using the admin page at http://localhost:8000/admin/polls/question/add/
+Create new poll questions using the admin page at http://localhost:8000/admin/polls/question/add/ to trigger Kafka events.
 
 To see if everything is running as expected go to our kafdrop container page at http://localhost:9000/
-You should see the topics.
+You should see the topics and produced messages.
 
-To prepare a protobuf file between python and .net core, I wrote a proto file: `/proto/question.proto`. To compile the proto file, you can install the protobuf compiler using:
+To prepare a protobuf file between python and .net core, I wrote a proto file: `/proto/question.proto`. To install the protobuf compiler on a Mac without problems use:
 
     brew install protobuf
 
-And run the following command inside the proto folder (I've already included the compiled output of the proto file in the repo).
+And run the following command inside the proto folder (I've already included the compiled output of the proto file in this repo).
 
     protoc question.proto --python_out=./output/python/ --csharp_out=./output/csharp/ --descriptor_set_out=question.desc
 
-We now need an outbox table to implement the cdc outbox pattern using Debezium. I created the Outbox model for this:
+We now need an outbox table to implement the outbox pattern using Debezium. I created the Outbox model for this:
 
     class Outbox(models.Model):
         id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -83,7 +86,7 @@ We now need an outbox table to implement the cdc outbox pattern using Debezium. 
         event_type = models.CharField(max_length=255, db_column='type')
         payload = models.BinaryField()
 
-You can read the [Debezium documentation](https://debezium.io/documentation/reference/configuration/outbox-event-router.html) for details. The `payload` column is special here since it will hold the serialized protobuf value and it will be passed transparently by Debezium to Kafka.
+You can read the [Debezium documentation](https://debezium.io/documentation/reference/configuration/outbox-event-router.html) for details. The `payload` column is special here since it will hold the binary serialized protobuf value and it will be passed transparently by Debezium to Kafka. This way, the downstream services can consume this payload without any dependency to Debezium.
 
 To populate the outbox table, I used the `save_model` method of admin view:
 
@@ -108,6 +111,8 @@ To populate the outbox table, I used the `save_model` method of admin view:
         )
         outbox.save()
         #outbox.delete()
+
+The `SerializeToString()` method here is the google implementation from the python class that auto-generated using the proto file. It will give us the binary representation of our payload.
 
 In the .NET client side, I created a standart .NET Core React startup project and built from there.
 I added a single node Elasticsearch and Kibana to the docker-compose file for storage.
@@ -215,5 +220,3 @@ The default serializer in .NET convert to PascalCase fields to camelCase.
             <td>{question.pubDate}</td>
         </tr>
     )}
-
-This example shows that you can profit from [Debezium](https://debezium.io/) for an [Outbox Pattern implementation](https://debezium.io/documentation/reference/1.6/transformations/outbox-event-router.html) while also having the benefits of [Google Protobuffers](https://developers.google.com/protocol-buffers).
