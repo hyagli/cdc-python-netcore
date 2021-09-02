@@ -1,6 +1,6 @@
 using System;
 
-namespace netcore
+namespace netCoreClient
 {
     public class WeatherForecast
     {

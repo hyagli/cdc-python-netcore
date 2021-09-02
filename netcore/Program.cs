@@ -1,15 +1,15 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using netcore.Models;
+using netCoreClient.Services;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
-namespace netcore
+namespace netCoreClient
 {
     public class Program
     {
@@ -23,8 +23,9 @@ namespace netcore
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
                     webBuilder.UseStartup<Startup>();
-                }
-                ).ConfigureServices(services => {
+                })
+                .ConfigureServices(services =>
+                {
                     services.AddHostedService<QuestionConsumerService>();
                 });
     }

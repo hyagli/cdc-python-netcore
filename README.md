@@ -22,8 +22,8 @@ To add some polls from admin page, create a superuser
 
 Using the username/password you just generated, you can later visit http://localhost:8000/admin/polls/question/ and create some rows after setting up CDC.
 
-Grant the required MySQL rights to django so that Debezium can do it's job.
-To do this, go to Adminer UI at http://localhost:8080/. Login using:
+Grant the required MySQL rights to django so that Debezium can do it's job. (This is done automatically using `command` in the `docker-compose.yml` file)
+To do this yourself, go to Adminer UI at http://localhost:8080/. Login using:
 
     Server: mysql
     Username: root
@@ -108,3 +108,112 @@ To populate the outbox table, I used the `save_model` method of admin view:
         )
         outbox.save()
         #outbox.delete()
+
+In the .NET client side, I created a standart .NET Core React startup project and built from there.
+I added a single node Elasticsearch and Kibana to the docker-compose file for storage.
+
+Since this is a web project, we need a background service to use as a Kafka consumer.
+
+    public class QuestionConsumerService : BackgroundService
+    {
+        private readonly string topic;
+        private readonly IConsumer<string, QuestionProto> kafkaConsumer;
+
+        public QuestionConsumerService()
+        {
+            topic = "outbox.event.question";
+            var consumerConfig = new ConsumerConfig
+            {
+                BootstrapServers = "host.docker.internal:9092",
+                GroupId = "hus-dotnet-consumer",
+                AutoOffsetReset = AutoOffsetReset.Earliest,
+            };
+            kafkaConsumer = new ConsumerBuilder<string, QuestionProto>(consumerConfig)
+                .SetValueDeserializer(new MyDeserializer())
+                .SetErrorHandler((_, e) => Console.WriteLine($"Consumer Error at SetErrorHandler: {e.Reason}"))
+                .Build();
+        }
+    ...
+
+I used `host.docker.internal` to connect to Kafka since the .NET application was running in my machine and kafka was running in docker.
+Just using `localhost:9092` wasn't enough since `ADVERTISED_LISTENERS=localhost` wouldn't working for zookeper, kafka-connect and kafdrop.
+In my host machine, `host.docker.internal` resolves to the Hyper-V virtual machine that docker uses and in the internal containers, it resolves to the correct internal IP of docker VM which routes the port back to the kafka container. This way, [Everyone is Happy](https://www.youtube.com/watch?v=N1Np_Q1nmQ8).
+
+Another gotcha was the deserialization of the payloads. At first I was using the example provided in the Confluent docs:
+
+    kafkaConsumer = new ConsumerBuilder<string, QuestionProto>(consumerConfig)
+                .SetValueDeserializer(new ProtobufDeserializer<QuestionProto>().AsSyncOverAsync())
+                .SetErrorHandler((_, e) => Console.WriteLine($"Consumer Error at SetErrorHandler: {e.Reason}"))
+                .Build();
+
+But I got a `Confluent.Kafka.ConsumeException` saying `"Local: Value deserialization error"`. To better see the problem, you should take a look at the `InnerException`:
+
+    System.IO.InvalidDataException: "Expecting message Value with Confluent Schema Registry framing. Magic byte was 8, expecting 0"
+
+The `ProtobufDeserializer<T>` provided by Confluent wasn't working since it was expecting the payload to be serialized using the Confluent serializer and I was using the default Google implementation to serialize the `Question` protobuf values in my Python code:
+
+    proto.SerializeToString()
+
+So, I wrote a simple deserializer of my own that would work using the Google implementation provided in my generated C# protobuf class:
+
+    public class MyDeserializer : IDeserializer<Question>
+    {
+        public Question Deserialize(ReadOnlySpan<byte> data, bool isNull, SerializationContext context)
+        {
+            if (isNull)
+                return null;
+            return Question.Parser.ParseFrom(data);
+        }
+    }
+
+To store the received payloads in Elasticsearch, I created a simple Question class since the protobuf auto-generated class contained lots of utility code:
+
+    public class Question
+    {
+        public int Id { get; set; }
+        public string QuestionText { get; set; }
+        public DateTime? PubDate { get; set; }
+    }
+
+Saving the payloads in Elasticsearch was pretty straightforward. No connection string was needed since the default is `localhost:9200`
+
+    void SaveMessage(QuestionProto val)
+    {
+        var question = new Question
+        {
+            Id = val.Id,
+            QuestionText = val.QuestionText,
+            PubDate = val.PubDate?.ToDateTime()
+        };
+        var settings = new ConnectionSettings().DefaultIndex("question");
+        var client = new ElasticClient(settings);
+        client.IndexDocument(question);
+    }
+
+To display the latest saved payloads, I created a simple controller:
+
+    [HttpGet]
+    public IEnumerable<Question> Get()
+    {
+        var settings = new ConnectionSettings().DefaultIndex("question");
+        var client = new ElasticClient(settings);
+        var searchResponse = client.Search<Question>(s => s
+            .Query(q => q.MatchAll())
+            .Sort(q => q.Descending(question => question.Id))
+            .Size(20)
+        );
+        return searchResponse.Documents;
+    }
+
+Then I modified the FetchData.js file to fetch from this Controller. The gotcha here was that the fields names in the received data in javascript side weren't matching those in the C# model.
+The default serializer in .NET convert to PascalCase fields to camelCase.
+
+    {questions.map(question =>
+        <tr key={question.id}>
+            <td>{question.id}</td>
+            <td>{question.questionText}</td>
+            <td>{question.pubDate}</td>
+        </tr>
+    )}
+
+This example shows that you can profit from [Debezium](https://debezium.io/) for an [Outbox Pattern implementation](https://debezium.io/documentation/reference/1.6/transformations/outbox-event-router.html) while also having the benefits of [Google Protobuffers](https://developers.google.com/protocol-buffers).

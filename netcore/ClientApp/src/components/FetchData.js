@@ -5,31 +5,29 @@ export class FetchData extends Component {
 
   constructor(props) {
     super(props);
-    this.state = { forecasts: [], loading: true };
+    this.state = { questions: [], loading: true };
   }
 
   componentDidMount() {
-    this.populateWeatherData();
+    this.populateQuestionData();
   }
 
-  static renderForecastsTable(forecasts) {
+  static renderQuestionsTable(questions) {
     return (
       <table className='table table-striped' aria-labelledby="tabelLabel">
         <thead>
           <tr>
-            <th>Date</th>
-            <th>Temp. (C)</th>
-            <th>Temp. (F)</th>
-            <th>Summary</th>
+            <th>Id</th>
+            <th>Question Text</th>
+            <th>Pub Date</th>
           </tr>
         </thead>
         <tbody>
-          {forecasts.map(forecast =>
-            <tr key={forecast.date}>
-              <td>{forecast.date}</td>
-              <td>{forecast.temperatureC}</td>
-              <td>{forecast.temperatureF}</td>
-              <td>{forecast.summary}</td>
+          {questions.map(question =>
+            <tr key={question.id}>
+              <td>{question.id}</td>
+              <td>{question.questionText}</td>
+              <td>{question.pubDate}</td>
             </tr>
           )}
         </tbody>
@@ -40,20 +38,20 @@ export class FetchData extends Component {
   render() {
     let contents = this.state.loading
       ? <p><em>Loading...</em></p>
-      : FetchData.renderForecastsTable(this.state.forecasts);
+        : FetchData.renderQuestionsTable(this.state.questions);
 
     return (
       <div>
-        <h1 id="tabelLabel" >Weather forecast</h1>
+        <h1 id="tabelLabel" >Received Questions</h1>
         <p>This component demonstrates fetching data from the server.</p>
         {contents}
       </div>
     );
   }
 
-  async populateWeatherData() {
-    const response = await fetch('weatherforecast');
+  async populateQuestionData() {
+    const response = await fetch('question');
     const data = await response.json();
-    this.setState({ forecasts: data, loading: false });
+    this.setState({ questions: data, loading: false });
   }
 }

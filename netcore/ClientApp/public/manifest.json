@@ -1,6 +1,6 @@
 {
-  "short_name": "netcore",
-  "name": "netcore",
+  "short_name": "netCoreClient",
+  "name": "netCoreClient",
   "icons": [
     {
       "src": "favicon.ico",
