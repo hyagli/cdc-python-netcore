@@ -1,0 +1,2 @@
+custom-configs:
+  auto-start: false # we disable it otherwise spring boot wiring context test hangs waiting for kafka.

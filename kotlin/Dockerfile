@@ -1,0 +1,30 @@
+ARG VERSION=8u151
+
+FROM openjdk:${VERSION}-jdk as BUILD
+
+COPY . /src
+WORKDIR /src
+RUN ./gradlew --no-daemon shadowJar
+
+FROM openjdk:${VERSION}-jre
+
+COPY --from=BUILD /src/build/libs/step-by-step-kotlin-all.jar /bin/runner/run.jar
+WORKDIR /bin/runner
+
+CMD ["java","-jar","run.jar"]
+
+
+------------------------------
+
+
+FROM ocelotuproar/alpine-kotlin:latest
+
+WORKDIR /src
+COPY . /src
+
+RUN gradle distZip && \
+  unzip /src/build/distributions/src.zip && \
+  rm /src/build/distributions/src.zip
+
+EXPOSE 3000
+CMD ["/src/src/bin/src"]
