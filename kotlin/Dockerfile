@@ -14,7 +14,7 @@ WORKDIR /bin/runner
 CMD ["java","-jar","run.jar"]
 
 
-------------------------------
+#------------------------------
 
 
 FROM ocelotuproar/alpine-kotlin:latest
