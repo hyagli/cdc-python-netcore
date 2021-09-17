@@ -1,0 +1,4 @@
+bin/
+obj/
+.vs/
+ClientApp/node_modules/

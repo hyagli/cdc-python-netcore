@@ -105,6 +105,15 @@ services:
       - 5601:5601
     depends_on:
       - elasticsearch
+  dotnetapp:
+    container_name: cdc-dotnet_app
+    build: ./netcore/
+    ports:
+      - "5000:80"
+    depends_on:
+      - elasticsearch
+      - kafka
+
 
 volumes:
   elasticsearch-data:

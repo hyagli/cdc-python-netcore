@@ -78,7 +78,8 @@ namespace netCoreClient.Services
                 QuestionText = val.QuestionText,
                 PubDate = val.PubDate?.ToDateTime()
             };
-            var settings = new ConnectionSettings().DefaultIndex("question");
+            var uri = new Uri("http://elasticsearch:9200");
+            var settings = new ConnectionSettings(uri).DefaultIndex("question");
             var client = new ElasticClient(settings);
             client.IndexDocument(question);
         }
