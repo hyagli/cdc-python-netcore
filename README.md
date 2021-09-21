@@ -25,7 +25,7 @@ To add some polls from admin page, create a superuser
 
 Using the username/password you just generated, you can later visit http://localhost:8000/admin/polls/question/ and create some rows after setting up CDC.
 
-Grant the required MySQL rights to django so that Debezium can do it's job. (This is done automatically using `command` in the `docker-compose.yml` file)
+Grant the required MySQL rights to django so that Debezium can do it's job. (This is done automatically using a volume in the `docker-compose.yml` file)
 To do this yourself, go to Adminer UI at http://localhost:8080/. Login using:
 
     Server: mysql
@@ -33,7 +33,7 @@ To do this yourself, go to Adminer UI at http://localhost:8080/. Login using:
     Password: pass
     Database: djangodb
 
-After logging in, click "SQL command" and execute this:
+After logging in, click "SQL command" and I executed this:
 
     GRANT SELECT, RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO django@'%';
 
