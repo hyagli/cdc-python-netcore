@@ -1,17 +1,21 @@
 # Outbox Pattern Implementation using Debezium and Google Protobuffers
 
-This example shows that you can profit from [Debezium](https://debezium.io/) for an [Outbox Pattern implementation](https://debezium.io/documentation/reference/1.6/transformations/outbox-event-router.html) while also having the benefits of [Google Protobuffers](https://developers.google.com/protocol-buffers).
+This is an example POC that shows that you can profit from [Debezium](https://debezium.io/) for an [Outbox Pattern implementation](https://debezium.io/documentation/reference/1.6/transformations/outbox-event-router.html) while also having the benefits of [Google Protobuffers](https://developers.google.com/protocol-buffers).
+
+A very nice example of using CDC for an outbox pattern is given in this [Debezium blog post](https://debezium.io/blog/2019/02/19/reliable-microservices-data-exchange-with-the-outbox-pattern/) by [Gunnar Morling](https://www.morling.dev/). Normally, when using CDC in an outbox pattern implementation, the Kafka message contains additional information about the schema, event key, etc. This is a problem for us since we don't want to lose the perfomance benefits that protobuf is giving us by using JSON serialization/deserialization. Another problem is that the downstream services need to be aware of the Debezium JSON schema while consuming Kafka messages. We want the downstream services to be aware of only the protobuf schemas.
 
 [Debezium](https://debezium.io/) is an open source project for [change data capture (CDC)](https://en.wikipedia.org/wiki/Change_data_capture).
+
 This example has a few components to demonstrate the utilities.
 - A dockerized Django web application that stores data in a MySQL database. This application writes the events to an outbox table in a protobuf binary serialized format.
 - An [Apache Kafka](https://kafka.apache.org/) docker setup with a [Kafka Connect](https://docs.confluent.io/platform/current/connect/index.html) container that has the [Debezium MySQL connector](https://debezium.io/documentation/reference/connectors/mysql.html) installed. The Debezium connector listens to the MySQL binlog for a specific outbox table and pushes the changes to a Kafka topic
 - A .NET Core React application with a PostgreSQL database that consumes this data.
 
-Debezium
+## Setup:
 
-Requirements:<br>
-- Just docker
+Requirements:
+
+- Just docker :)
 
 To get the docker containers up and running:
 
@@ -114,7 +118,7 @@ To populate the outbox table, I used the `save_model` method of admin view:
         outbox.save()
         #outbox.delete()
 
-The `SerializeToString()` method here is the google implementation from the python class that auto-generated using the proto file. It will give us the binary representation of our payload.
+The `SerializeToString()` method here is the google implementation from the python class that is auto-generated using the proto file. Contrary to its name, it gives us the binary representation of our payload.
 
 In the .NET client side, I created a standart .NET Core React startup project and built from there.
 I added a single node Elasticsearch and Kibana to the docker-compose file for storage.
@@ -212,8 +216,7 @@ To display the latest saved payloads, I created a simple controller:
         return searchResponse.Documents;
     }
 
-Then I modified the FetchData.js file to fetch from this Controller. The gotcha here was that the fields names in the received data in javascript side weren't matching those in the C# model.
-The default serializer in .NET convert to PascalCase fields to camelCase.
+Then I modified the FetchData.js file to fetch from this Controller. The gotcha here was that the fields names in the received data in javascript side weren't matching those in the C# model. The default serializer in .NET converts to PascalCase fields to camelCase.
 
     {questions.map(question =>
         <tr key={question.id}>
